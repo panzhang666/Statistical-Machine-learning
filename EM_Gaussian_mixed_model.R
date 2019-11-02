@@ -1,3 +1,5 @@
+#Author Pan Zhang
+
 Estep = function(data, G, para){
   pr = para$prob
   mu = para$mean
