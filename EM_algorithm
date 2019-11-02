@@ -1,4 +1,4 @@
-EM algorithm starting with E-step for parameterized Gaussian mixture models
+#EM algorithm starting with E-step for parameterized Gaussian mixture models
 Estep = function(data, G, para){
   pr = para$prob
   mu = para$mean
