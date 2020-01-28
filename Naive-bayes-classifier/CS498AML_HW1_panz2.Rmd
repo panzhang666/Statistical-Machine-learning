@@ -1,0 +1,176 @@
+---
+title: "CS498AML_HW1_panz2"
+author: "PanZhang"
+date: "9/7/2018"
+output: word_document
+---
+#Part 1A
+```{r}
+naivebayes = function (datafr){
+  #split data into train and test
+  index=sample(2, nrow(datafr), replace=T, prob=c(0.8,0.2))
+  data.train <- data[index==1, ]
+  dim(data.train)
+  data.test <- data[index==2, ]
+  dim(data.test)
+  #calculate posterior and class-conditional distributions
+  labels=data.train[,ncol(datafr)]
+  num_feature = ncol(datafr)-1
+  label = unique(labels)
+  feature = array(NA,dim=c(length(label),num_feature,2))
+  priori = array(NA,rep(length(label)))
+  for (i in 1:length(label)){
+    label_class_sum = length(labels[labels==label[i]])
+    priori[i] = label_class_sum/length(labels)
+    attrs_condition = data.train[which(data.train$X1==label[i]),]
+    for (j in 1:num_feature){
+      attrs=attrs_condition[,j]
+      #calculate mean and sd for each attribute
+      feature[i,j,1]= mean(attrs)
+      feature[i,j,2]= sd(attrs)
+    }
+  }
+  #apply mode to test data
+  right_class=0
+  for (k in 1:nrow(data.test)){
+    p=array(NA,dim=c(length(label),num_feature))
+    result=array(NA,rep(length(label)))
+    for (i in 1:length(label)){
+      for (j in 1:length(num_feature)){
+        p[i][j]=dnorm(data.test[k,j], feature[i,j,1],feature[i,j,2])
+        if (j==1){
+          result[i]= p[i][j]
+        }
+        else{
+          result[i]=result[i]*p[i][j]
+        }
+      }
+      result[i]=result[i]*priori[i]
+    }
+    my_lable=label[which.max(result)]
+    if (data.test[k,ncol(datafr)] == my_lable){
+      right_class = right_class + 1
+    }
+  }  
+  accuracy=right_class/nrow(data.test)
+  return (accuracy)
+}
+```
+
+```{r}
+#apply function to our data
+setwd('/Users/panzhang/Desktop/CS498AML/HW1/')
+data=read.csv("pima-indians-diabetes.csv")
+accuracies= array(NA,rep(10))
+#10 test-train splits.
+for (i in 1:10){
+  accuracies[i]=naivebayes(data)
+}
+accuracies
+ave_accuracy=mean(accuracies)
+ave_accuracy
+```
+
+
+#Part 1B
+```{r}
+#relace 0 in atrribute 3,4,6,8 with NA
+setwd('/Users/panzhang/Desktop/CS498AML/HW1/')
+data=read.csv("pima-indians-diabetes.csv")
+data[which(data[,3]==0),3] = NA
+data[which(data[,4]==0),4] = NA
+data[which(data[,6]==0),6] = NA
+data[which(data[,8]==0),8] = NA
+```
+
+
+```{r}
+naivebayes_update = function (datafr){
+  #split data into train and test
+  index=sample(2, nrow(datafr), replace=T, prob=c(0.8,0.2))
+  data.train <- data[index==1, ]
+  dim(data.train)
+  data.test <- data[index==2, ]
+  dim(data.test)
+  #calculate posterior and class-conditional distributions
+  labels=data.train[,ncol(datafr)]
+  num_feature = ncol(datafr)-1
+  label = unique(labels)
+  feature = array(NA,dim=c(length(label),num_feature,2))
+  priori = array(NA,rep(length(label)))
+  for (i in 1:length(label)){
+    label_class_sum = length(labels[labels==label[i]])
+    priori[i] = label_class_sum/length(labels)
+    attrs_condition = data.train[which(data.train$X1==label[i]),]
+    for (j in 1:num_feature){
+      attrs=attrs_condition[,j]
+      #calculate mean and sd for each attribute
+      feature[i,j,1]= mean(attrs,na.rm=TRUE)
+      feature[i,j,2]= sd(attrs,na.rm=TRUE)
+      #here we caculate mean and sd with NA removed.
+    }
+  }
+  #apply mode to test data
+  right_class=0
+  for (k in 1:nrow(data.test)){
+    p=array(NA,dim=c(length(label),num_feature))
+    result=array(NA,rep(length(label)))
+    for (i in 1:length(label)){
+      for (j in 1:length(num_feature)){
+        if (data.test[k,j]==FALSE){
+          p[i][j]=1  
+        }
+        else{
+          p[i][j]=dnorm(data.test[k,j], feature[i,j,1],feature[i,j,2])
+        }
+        if (j==1){
+          result[i]= p[i][j]
+        }
+        else{
+          result[i]=result[i]*p[i][j]
+        }
+      }
+      result[i]=result[i]*priori[i]
+    }
+    my_lable=label[which.max(result)]
+    if (data.test[k,ncol(datafr)] == my_lable){
+      right_class = right_class + 1
+    }
+  }  
+  accuracy=right_class/nrow(data.test)
+  return (accuracy)
+}
+#apply function to our data
+data=read.csv("pima-indians-diabetes.csv")
+accuracies= array(NA,rep(10))
+for (i in 1:10){
+  accuracies[i]=naivebayes_update(data)
+}
+accuracies
+ave_accuracy=mean(accuracies)
+ave_accuracy
+```
+
+#Part 1D
+```{r}
+data_svm=read.csv("pima-indians-diabetes.csv")
+library('klaR')
+accuracies= array(NA,rep(10))
+for (i in 1:10){
+  index=sample(2, nrow(data_svm), replace=T, prob=c(0.8,0.2))
+  data_svm.train <- data[index==1, ]
+  dim(data_svm.train)
+  data_svm.test <- data[index==2, ]
+  dim(data_svm.test)
+  svm = svmlight(data_svm.train[,1:8], factor(data_svm.train[,9]), pathsvm="/Users/panzhang/Desktop/CS498AML/svm_light/")
+  labels = predict(svm, data_svm.test[,1:8])
+  answers = labels$class
+  #accuracy
+  correct <- sum(answers == data_svm.test[,9])
+  accuracies[i] = correct / nrow(data_svm.test)
+}
+accuracies
+mean(accuracies)
+```
+
+
