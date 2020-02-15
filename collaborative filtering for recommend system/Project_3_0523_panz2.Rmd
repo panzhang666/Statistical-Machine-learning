@@ -1,0 +1,110 @@
+---
+title: "Project_3_0523_panz2"
+author: "PanZhang"
+date: "April 27, 2019"
+output: word_document
+---
+
+```{r}
+set.seed(0523)
+setwd("/Users/panzhang/Desktop/STAT542/project3")
+library(dplyr)
+library(recommenderlab) 
+library(reshape2)  
+```
+
+## Read file
+
+```{r}
+ratings = read.csv('ratings.dat', sep = ':', 
+    colClasses = c('integer', 'NULL'), header = FALSE)
+colnames(ratings) = c('UserID', 'MovieID', 'Rating', 'Timestamp')
+dim(ratings)
+movies = readLines('movies.dat')
+movies = strsplit(movies, split = "::", fixed = TRUE, useBytes = TRUE)
+movies = matrix(unlist(movies), ncol = 3, byrow = TRUE)
+movies = data.frame(movies, stringsAsFactors = FALSE)
+colnames(movies) = c('MovieID', 'Title', 'Genres')
+movies$MovieID = as.integer(movies$MovieID)
+movies$Genres = ifelse(grepl('\\|', movies$Genres), "Multiple", 
+                      movies$Genres)
+rating_merged = merge(x = ratings, y = movies, by.x = "MovieID")
+users = read.csv('users.dat', sep = ':', header = FALSE)
+users = users[,-c(2,4,6,8)]
+colnames(users) = c('UserID', 'Gender', 'Age', 'Occupation',"Zip")
+```
+
+## Prepare training and test data
+
+```{r}
+ratings$Timestamp = NULL;
+colnames(ratings) = c('user', 'movie', 'rating')
+train.id = sample(nrow(ratings), floor(nrow(ratings)) * 0.6)
+train = ratings[train.id, ]
+head(train)
+
+test = ratings[-train.id, ]
+test.id = sample(nrow(test), floor(nrow(test)) * 0.5)
+test = test[test.id, ]
+head(test)
+
+label = test[c('user', 'rating')]
+test$rating = NULL
+head(label)
+head(test)
+```
+
+
+```{r}
+# function for RSEM calculation
+rmse <- function(actuals, predicts){
+  return (sqrt(mean((actuals - predicts)^2, na.rm = T)))
+}
+
+# function for predicting test and output RSEM
+pred_test_evaluate <- function(test, rec_list){
+  test$rating = NA
+  # For all lines in test file, one by one
+  for (u in 1:nrow(test)){
+      # Read userid and movieid from columns 2 and 3 of test data
+      userid = as.character(test$user[u])
+      movieid = as.character(test$movie[u])
+      rating = rec_list[[userid]][movieid]
+      test$rating[u] = ifelse(is.na(rating), mean(train$rating), rating)
+  }
+  return(rmse(label$rating,test$rating))
+}
+```
+
+
+#Recommender System
+```{r}
+R = acast(train, user ~ movie)
+R = as(R, 'realRatingMatrix')
+R_m = normalize(R, method="Z-score")
+hist(getRatings(R), main = "Raw Ratings",breaks = 100)
+hist(getRatings(R_m), main = "Normalized Ratings",breaks = 100)
+image(R, main = "Raw Ratings")
+image(R_m, main = "Normalized Ratings")
+#head(getRatingMatrix(R_m))
+recommenderRegistry$get_entries(dataType = "realRatingMatrix")
+#reconmmender for UBCF
+rec_ubcf = Recommender(R, method = "UBCF",
+    parameter = list(normalize = 'Z-score', method = 'Cosine', nn=25)
+    )
+print(rec_ubcf)
+names(getModel(rec_ubcf))
+recom_ubcf = predict(rec_ubcf, R, type = 'ratings')  # predict ratings. This may be slow.
+rec_list_ubcf = as(recom_ubcf, 'list')  # each element are ratings of that user
+pred_test_evaluate(test, rec_list_ubcf)
+
+#reconmmender for IBCF
+rec_ibcf = Recommender(R, method = "IBCF",
+    parameter = list(normalize = 'Z-score', method = 'Cosine')
+    )
+print(rec_ibcf)
+names(getModel(rec_ibcf))
+recom_ibcf = predict(rec_ibcf, R, type = 'ratings')  # predict ratings. This may be slow.
+rec_list_ibcf = as(recom_ibcf, 'list')  # each element are ratings of that user
+pred_test_evaluate(test, rec_list_ibcf)
+```
